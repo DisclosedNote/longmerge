@@ -5,11 +5,16 @@ import com.badlogic.gdx.assets.AssetManager;
 import com.badlogic.gdx.graphics.OrthographicCamera;
 import com.badlogic.gdx.graphics.Texture;
 import com.badlogic.gdx.graphics.g2d.BitmapFont;
+import com.badlogic.gdx.scenes.scene2d.Event;
+import com.badlogic.gdx.scenes.scene2d.EventListener;
+import com.badlogic.gdx.scenes.scene2d.InputEvent;
 import com.badlogic.gdx.scenes.scene2d.Stage;
 import com.badlogic.gdx.scenes.scene2d.ui.*;
+import com.badlogic.gdx.scenes.scene2d.utils.ClickListener;
 import com.badlogic.gdx.utils.Align;
 import com.badlogic.gdx.utils.ScreenUtils;
 import com.badlogic.gdx.utils.viewport.ScreenViewport;
+import foss.longmerge.ui.field.GameField;
 
 import java.util.HashMap;
 
@@ -17,23 +22,24 @@ public class LongMergeGame extends Game {
 //	SpriteBatch batch;
 //	Texture img;
 
-	public AssetManager assetManager;
+	public static AssetManager assetManager;
 
 	public InputMultiplexer multiplexer;
 	public OrthographicCamera camera;
 	public ScreenViewport viewport;
 	public Stage stage;
 
-	public BitmapFont font;
-	public Skin skin;
+	public static Skin skin;
 
 	/* Assets */
-	public HashMap<String, String> textures = new HashMap<>();
-	public static String TEXTURE_BOMB 		= "bomb";
-	public static String TEXTURE_CELL 		= "cell";
+	public static BitmapFont cellFont;
+	public static String TEXTURE_BOMB 		= "textures/bomb.png";
+	public static String TEXTURE_CELL 		= "textures/cell.png";
 
 	/* UI */
-	public Table gameTable;
+	public boolean triggeredToBuildUI = false;
+	public GameField gameField;
+	public Table uiTable;
 	public Table topPanelTable;
 	public Label score;
 	public Label title;
@@ -46,12 +52,13 @@ public class LongMergeGame extends Game {
 		stage 					= new Stage(viewport);
 		assetManager 			= new AssetManager();
 		skin 					= new Skin(Gdx.files.internal("skin/default-skin.json"));
+		cellFont				= new BitmapFont(Gdx.files.internal("skin/longmerge-cell.fnt"), false);
+//		cellFont				= new BitmapFont();
 
 		multiplexer.addProcessor(stage);
 		Gdx.input.setInputProcessor(multiplexer);
 
 		this.loadTextures();
-		this.buildScene();
 
 //		batch = new SpriteBatch();
 //		img = new Texture("badlogic.jpg");
@@ -59,50 +66,59 @@ public class LongMergeGame extends Game {
 		this.resize(Gdx.graphics.getWidth(), Gdx.graphics.getHeight());
 	}
 
-	protected void loadTextures(){
-		textures.put(TEXTURE_BOMB, 			"textures/bomb.png");
-		textures.put(TEXTURE_CELL, 			"textures/cell.png");
-
-		for(String tex : textures.values())
-			assetManager.load(tex, Texture.class);
+	private void loadTextures(){
+		assetManager.load(TEXTURE_BOMB, Texture.class);
+		assetManager.load(TEXTURE_CELL, Texture.class);
 	}
 
-	protected void buildScene(){
-		gameTable = new Table(skin);
-		gameTable.setFillParent(true);
-//		gameTable.setDebug(true);
-		gameTable.pad(10);
+	private void buildScene(){
+		uiTable = new Table(skin);
+		uiTable.setFillParent(true);
+//		uiTable.setDebug(true);
+		uiTable.pad(10);
 
 		topPanelTable = new Table(skin);
 		topPanelTable.align(Align.left);
 //		topPanelTable.setDebug(true);
 		topPanelTable.setHeight(32);
 
+		gameField = new GameField(cellFont);
 		title = new Label("Longmerge", skin, "title");
 		title.setAlignment(Align.left);
 		score = new Label("Score: 0", skin);
 		score.setAlignment(Align.right);
 
+		ImageButton newGameButton = new ImageButton(skin, "new-game-button");
+		ImageButton undoButton = new ImageButton(skin, "undo-button");
+		ImageButton redoButton = new ImageButton(skin, "redo-button");
+
 		ImageButton[] els = new ImageButton[]
 		{
-			new ImageButton(skin, "new-game-button"),
-			new ImageButton(skin, "undo-button"),
-			new ImageButton(skin, "redo-button")
+			newGameButton,
+			undoButton,
+			redoButton
 		};
+
+		newGameButton.addListener(new ClickListener() {
+			@Override
+			public void clicked(InputEvent event, float x, float y) {
+				LongMergeGame.this.gameField.regenerateField();
+			}
+		});
+
 
 		for(ImageButton el : els)
 			topPanelTable.add(el).width(32).height(32);
 
-		gameTable.add(topPanelTable).colspan(2).fillX();
-		gameTable.row();
-		gameTable.add().colspan(2).expand().fillX();
-		gameTable.row();
-		gameTable.add(title).fill().expandX();
-		gameTable.add(score).fill().expandX();
-
+		uiTable.add(topPanelTable).colspan(2).fillX();
+		uiTable.row();
+		uiTable.add(gameField).colspan(2).expand().fill();
+		uiTable.row();
+		uiTable.add(title).fill().expandX();
+		uiTable.add(score).fill().expandX();
 
 		// Add to scene
-		stage.addActor(gameTable);
+		stage.addActor(uiTable);
 	}
 
 
@@ -110,28 +126,20 @@ public class LongMergeGame extends Game {
 	public void render () {
 		ScreenUtils.clear(53f / 255f, 53f / 255f, 53f / 255f, 1);
 
-		if(!assetManager.update())
+		if(!assetManager.update()){
+			ScreenUtils.clear(assetManager.getProgress() / 255f, assetManager.getProgress() / 255f, assetManager.getProgress() / 255f, 1);
 			return;
+		}
+
+		if(!triggeredToBuildUI){
+			this.buildScene();
+			triggeredToBuildUI = true;
+		}
 
 		super.render();
 
 		/*
-		try {
-			// Number as degree
-			byte[] bytesOfMessage = "10".getBytes("UTF-8");
 
-			MessageDigest md = MessageDigest.getInstance("MD5");
-			byte[] theMD5digest = md.digest(bytesOfMessage);
-
-			int r = theMD5digest[5] + 128;
-			int g = theMD5digest[9] + 128;
-			int b = theMD5digest[13] + 128;
-
-			ScreenUtils.clear(r / 255f, g / 255f, b / 255f, 1);
-
-		} catch (UnsupportedEncodingException | NoSuchAlgorithmException e) {
-			throw new RuntimeException(e);
-		}
 		*/
 
 //		camera.update();
@@ -190,8 +198,8 @@ public class LongMergeGame extends Game {
 		super.dispose();
 //		batch.dispose();
 //		img.dispose();
+		gameField.dispose();
 		stage.dispose();
-		font.dispose();
 		skin.dispose();
 		assetManager.dispose();
 	}
