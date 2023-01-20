@@ -11,6 +11,7 @@ import foss.longmerge.LongMergeGame;
 import org.w3c.dom.Text;
 
 import java.io.UnsupportedEncodingException;
+import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 
@@ -27,22 +28,32 @@ public class GameCell {
         PLATE
     }
 
+    enum HighlightType {
+        NONE,
+        AVAILABLE,
+        MERGED,
+        FORBIDDEN
+    }
+
     private CellType type;
     private Color color = Color.valueOf("C29A24");
-    private Color shadowFrom = new Color(1f,1f,1f,1f);
-    private Color shadowTo = new Color(1f,1f,1f,0f);
+    static final Color shadowAvailableFrom = new Color(1f,1f,1f,1f);
+    static final Color shadowForbiddenFrom = new Color(1f,0f,0f,1f);
+    static final Color shadowMergedFrom = new Color(0f,1f,0f,1f);
     private int power = 0;
     private int pos = 0;
     private boolean highlighted = false;
     private final VisualDragging visualDragging = new VisualDragging();
     private final BitmapFont cellFont;
     private final Texture bombTexture;
+    private final Texture cellTexture;
     private final GlyphLayout cellTextLayout = new GlyphLayout();
     public GameCell(CellType type, int power, int pos, BitmapFont cellFont) {
         this.type = type;
         this.pos = pos;
         this.cellFont = cellFont;
         bombTexture = LongMergeGame.assetManager.get(LongMergeGame.TEXTURE_BOMB);
+        cellTexture = LongMergeGame.assetManager.get(LongMergeGame.TEXTURE_CELL);
         this.setPower(power);
     }
 
@@ -116,7 +127,7 @@ public class GameCell {
     public Color hashColor(int rOffset, int gOffset, int bOffset){
         try {
             // TODO: optimize
-            byte[] bytesOfMessage = String.valueOf(this.power).getBytes("UTF-8");
+            byte[] bytesOfMessage = String.valueOf(this.power).getBytes(StandardCharsets.UTF_8);
 
             MessageDigest md = MessageDigest.getInstance("MD5");
             byte[] theMD5digest = md.digest(bytesOfMessage);
@@ -127,27 +138,41 @@ public class GameCell {
 
             return new Color((float)r / 255f, (float)g / 255f, (float)b / 255f, 1f);
 
-        } catch (UnsupportedEncodingException | NoSuchAlgorithmException e) {
+        } catch (NoSuchAlgorithmException e) {
             return Color.BLACK;
         }
     }
 
-    public void draw(Batch batch,
-                     float parentAlpha,
-                     ShapeRenderer shapeRenderer,
-                     float renderX,
-                     float renderY,
-                     int cellSize,
-                     boolean tempHighlight) {
+    public void draw(
+        Batch batch,
+        float parentAlpha,
+        ShapeRenderer shapeRenderer,
+        float renderX,
+        float renderY,
+        int cellSize,
+        HighlightType tempHighlight
+    ) {
 
+        switch(tempHighlight){
+            default:
+            case NONE:
+                shapeRenderer.begin(ShapeRenderer.ShapeType.Filled);
+                shapeRenderer.setColor(this.color);
+                shapeRenderer.rect(renderX, renderY, cellSize, cellSize);
+                shapeRenderer.end();
+                break;
 
-        if(!tempHighlight) {
-            shapeRenderer.begin(ShapeRenderer.ShapeType.Filled);
-            shapeRenderer.setColor(this.color);
-            shapeRenderer.rect(renderX, renderY, cellSize, cellSize);
-            shapeRenderer.end();
-        } else {
-            this.drawInnerShadow(batch, parentAlpha, shapeRenderer, renderX, renderY, cellSize);
+            case AVAILABLE:
+                this.drawInnerShadow(batch, parentAlpha, shapeRenderer, renderX, renderY, cellSize, GameCell.shadowAvailableFrom);
+                break;
+
+            case FORBIDDEN:
+                this.drawInnerShadow(batch, parentAlpha, shapeRenderer, renderX, renderY, cellSize, GameCell.shadowForbiddenFrom);
+                break;
+
+            case MERGED:
+                this.drawInnerShadow(batch, parentAlpha, shapeRenderer, renderX, renderY, cellSize, GameCell.shadowMergedFrom);
+                break;
         }
 
         shapeRenderer.begin(ShapeRenderer.ShapeType.Line);
@@ -155,9 +180,9 @@ public class GameCell {
         shapeRenderer.rect(renderX, renderY, cellSize, cellSize);
         shapeRenderer.end();
 
-        if(this.type == CellType.BOMB){
+        if(this.type == CellType.PLATE){
             batch.begin();
-            batch.draw(bombTexture, renderX, renderY, cellSize, cellSize);
+            batch.draw(cellTexture, renderX, renderY, cellSize, cellSize);
             batch.end();
         }
 
@@ -174,16 +199,19 @@ public class GameCell {
 //        Gdx.gl.
     }
 
-    private void drawInnerShadow(Batch batch,
-                                 float parentAlpha,
-                                 ShapeRenderer shapeRenderer,
-                                 float renderX,
-                                 float renderY,
-                                 int cellSize){
+    private void drawInnerShadow(
+        Batch batch,
+        float parentAlpha,
+        ShapeRenderer shapeRenderer,
+        float renderX,
+        float renderY,
+        int cellSize,
+        Color shadowColor
+    ){
 
         shapeRenderer.begin(ShapeRenderer.ShapeType.Filled);
-        shapeRenderer.rect(renderX, renderY, cellSize, cellSize / 2f, shadowFrom, shadowFrom, color, color);
-        shapeRenderer.rect(renderX, renderY + cellSize / 2, cellSize, cellSize / 2f, color, color, shadowFrom, shadowFrom);
+        shapeRenderer.rect(renderX, renderY, cellSize, cellSize / 2f, shadowColor, shadowColor, color, color);
+        shapeRenderer.rect(renderX, renderY + cellSize / 2, cellSize, cellSize / 2f, color, color, shadowColor, shadowColor);
 //        shapeRenderer.rect(renderX, renderY, cellSize / 2f, cellSize, shadowFrom, color, color, shadowFrom);
         shapeRenderer.end();
 

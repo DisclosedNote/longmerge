@@ -1,34 +1,19 @@
 package foss.longmerge.ui.field;
 
-import com.badlogic.gdx.Gdx;
-import com.badlogic.gdx.InputAdapter;
 import com.badlogic.gdx.graphics.Color;
 import com.badlogic.gdx.graphics.g2d.Batch;
 import com.badlogic.gdx.graphics.g2d.BitmapFont;
 import com.badlogic.gdx.graphics.glutils.ShapeRenderer;
-import com.badlogic.gdx.math.Vector2;
-import com.badlogic.gdx.math.Vector3;
 import com.badlogic.gdx.scenes.scene2d.InputEvent;
 import com.badlogic.gdx.scenes.scene2d.ui.Widget;
 import com.badlogic.gdx.scenes.scene2d.utils.ClickListener;
-import foss.longmerge.LongMergeGame;
 
 import java.util.Random;
 import java.util.concurrent.ThreadLocalRandom;
 
 public class GameField extends Widget {
-
-//    public int convertToPos(int x, int y){
-//        return x * fieldWidth + y * fieldHeight;
-//    }
-
-//    public Vector2 convertToVector2(int pos){
-//        return new Vector2(pos % fieldWidth, pos / fieldHeight);
-//    }
-
-    private final int fieldWidth;
-    private final int fieldHeight;
-    private final int platesCount = 16;
+    private final int fieldSide;
+    private final int platesCount = 8;
     private final BitmapFont cellFont;
     private GameCell[] field;
     public ShapeRenderer shapeRenderer = new ShapeRenderer();
@@ -36,28 +21,23 @@ public class GameField extends Widget {
     public GameCell selected = null;
     public GameCell underCursor = null;
 
-    public int getFieldWidth() {
-        return fieldWidth;
-    }
-
-    public int getFieldHeight() {
-        return fieldHeight;
+    public int getFieldSide() {
+        return fieldSide;
     }
 
     public void regenerateField(){
         selected = null;
         underCursor = null;
 
-        field = new GameCell[fieldHeight * fieldWidth];
+        field = new GameCell[fieldSide * fieldSide];
 
         // Generate plates
-
         for(int i = 0; i < platesCount; i++) {
             field[i] = new GameCell(GameCell.CellType.PLATE, 1, i, cellFont);
         }
 
         // Generate empty
-        for(int i = platesCount; i < fieldHeight * fieldWidth; i++) {
+        for(int i = platesCount; i < fieldSide * fieldSide; i++) {
             field[i] = new GameCell(i, cellFont);
         }
 
@@ -75,13 +55,12 @@ public class GameField extends Widget {
     }
 
     public GameField(BitmapFont cellFont) {
-        this(cellFont, 16, 16);
+        this(cellFont, 8);
     }
 
-    public GameField(BitmapFont cellFont, int fieldWidth, int fieldHeight) {
+    public GameField(BitmapFont cellFont, int fieldSide) {
         this.cellFont = cellFont;
-        this.fieldWidth = fieldWidth;
-        this.fieldHeight = fieldHeight;
+        this.fieldSide = fieldSide;
 
         // Listeners
         this.addListener(new ClickListener(){
@@ -92,7 +71,9 @@ public class GameField extends Widget {
 
             @Override
             public boolean touchDown(InputEvent event, float x, float y, int pointer, int button) {
-                return super.touchDown(event, x, y, pointer, button) && GameField.this.touchDown(event,x,y,pointer,button);
+                return
+                    super.touchDown(event, x, y, pointer, button) &&
+                    GameField.this.touchDown(event,x,y,pointer,button);
             }
 
             @Override
@@ -112,7 +93,7 @@ public class GameField extends Widget {
     }
 
     public int getCellSize(){
-        return (int) (Math.min(getWidth(), getHeight()) / (int)Math.max(fieldWidth, fieldHeight));
+        return (int) (Math.min(getWidth(), getHeight()) / fieldSide);
     }
 
     @Override
@@ -120,51 +101,50 @@ public class GameField extends Widget {
         super.draw(batch, parentAlpha);
         batch.end();
 
+        // using primitives here to get maximum rendering performance
+        int cellSize = getCellSize();
         float centerX = getX() + getWidth() / 2f;
         float centerY = getY() + getHeight() / 2f;
+        float startX = centerX - (cellSize * fieldSide) / 2f;
+        float startY = centerY - (cellSize * fieldSide) / 2f;
 
-        int cellSize = getCellSize();
-
-        float startX = centerX - (cellSize * fieldWidth) / 2f;
-        float startY = centerY - (cellSize * fieldHeight) / 2f;
-
-        //        underCursor.setHighlighted(!underCursor.isHighlighted());
-
-//        selected.setHighlighted(true);
-//        underCursor.setHighlighted(true);
-
-        int selectedX = 0, selectedY = 0, underCursorX = 0, underCursorY = 0;
+        GameCell.CellType selectedCellType = GameCell.CellType.PLATE;
+        int selectedX = 0;
+        int selectedY = 0;
+        int selectedPower = -1;
+        int underCursorX = 0;
+        int underCursorY = 0;
+//        int pathMergingPlateCellsVisited = 0;
 
         if(selected != null && underCursor != null) {
-            selectedX = selected.getPos() / platesCount;
-            selectedY = selected.getPos() % platesCount;
-            underCursorX = underCursor.getPos() / platesCount;
-            underCursorY = underCursor.getPos() % platesCount;
+            selectedX = selected.getPos() / getFieldSide();
+            selectedY = selected.getPos() % getFieldSide();
+            selectedPower = selected.getPower();
+            underCursorX = underCursor.getPos() / getFieldSide();
+            underCursorY = underCursor.getPos() % getFieldSide();
         }
 
-        for(int i = 0; i < fieldWidth * fieldHeight; i++) {
-            if(field[i].getVisualDragging().status) continue;
-//                shapeRenderer.setProjectionMatrix(batch.getProjectionMatrix());
-            int cellX = (i / fieldWidth);
-            int cellY = (i % fieldWidth);
+        for(int i = 0; i < fieldSide * fieldSide; i++) {
+            GameCell cell = field[i];
+            if(cell.getVisualDragging().status) continue;
+
+            GameCell.CellType cellType = cell.getType();
+            int cellPower = cell.getPower();
+            int cellX = (i / fieldSide);
+            int cellY = (i % fieldSide);
             float renderX = startX + cellX * cellSize;
             float renderY = startY + cellY * cellSize;
 
-            boolean highlight = false;
+            GameCell.HighlightType highlight = drawGetHighlightStatus(
+                selectedX, selectedY,
+                selectedCellType, selectedPower,
+                underCursorX, underCursorY,
+                cellX, cellY,
+                cellType,
+                cellPower
+            );
 
-            if(selected != null && underCursor != null) {
-                if (selectedX != underCursorX && selectedY == underCursorY && cellY == selectedY) {
-                    int from = Math.min(selectedX, underCursorX);
-                    int to = Math.max(selectedX, underCursorX);
-                    if (cellX >= from && cellX <= to)highlight = true;
-                } else if (selectedY != underCursorY && selectedX == underCursorX && cellX == selectedX) {
-                    int from = Math.min(selectedY, underCursorY);
-                    int to = Math.max(selectedY, underCursorY);
-                    if (cellY >= from && cellY <= to) highlight = true;
-                }
-            }
-
-            field[i].draw(
+            cell.draw(
                 batch,
                 parentAlpha,
                 shapeRenderer,
@@ -179,7 +159,7 @@ public class GameField extends Widget {
         shapeRenderer.begin(ShapeRenderer.ShapeType.Line);
         shapeRenderer.setColor(Color.GRAY);
 //        shapeRenderer.rect(getX(), getY(), getWidth(), getHeight());
-        shapeRenderer.rect(startX, startY, cellSize * fieldWidth, cellSize * fieldHeight);
+        shapeRenderer.rect(startX, startY, cellSize * fieldSide, cellSize * fieldSide);
         shapeRenderer.end();
 
         // Selected cell
@@ -193,17 +173,74 @@ public class GameField extends Widget {
                     dragging.position.x - cellSize / 2f,
                     dragging.position.y - cellSize / 2f,
                     cellSize,
-                    false
+                    GameCell.HighlightType.NONE
                 );
             }
         }
 
-
         batch.begin();
     }
 
+    private GameCell.HighlightType drawGetHighlightStatus(
+        int selectedX, int selectedY,
+        GameCell.CellType selectedCellType,
+        int selectedPower,
+        int underCursorX, int underCursorY,
+        int cellX, int cellY,
+        GameCell.CellType cellType,
+        int cellPower
+    ){
+        // If nothing is selected
+        if(selected == null || underCursor == null)
+            return GameCell.HighlightType.NONE;
+
+        int from = -1;
+        int to = -1;
+        int selectedCord = 0;
+
+        // get path from & to positions, path direction
+        if (selectedX != underCursorX && selectedY == underCursorY && cellY == selectedY) {
+            from = Math.min(selectedX, underCursorX);
+            to = Math.max(selectedX, underCursorX);
+            selectedCord = cellX;
+        } else if (selectedY != underCursorY && selectedX == underCursorX && cellX == selectedX) {
+            from = Math.min(selectedY, underCursorY);
+            to = Math.max(selectedY, underCursorY);
+            selectedCord = cellY;
+        }
+
+        // if not within path
+        if(!(selectedCord >= from && selectedCord <= to))
+            return GameCell.HighlightType.NONE;
+
+        // if current cell can be merged with the selected one
+        if(selectedCellType == cellType && selectedPower == cellPower)
+            return GameCell.HighlightType.MERGED;
+
+
+        // check whether the move is available
+        final boolean checkPlates = (
+            cellType == GameCell.CellType.PLATE &&
+            cellPower == selectedPower
+        );
+        final boolean checkBombs = (
+            cellType == GameCell.CellType.BOMB &&
+            cellPower < selectedPower
+        );
+        final boolean checkEmpty = (
+            cellType == GameCell.CellType.EMPTY
+        );
+
+        // Available if movable
+        if(checkPlates || checkBombs || checkEmpty)
+            return GameCell.HighlightType.AVAILABLE;
+
+        // Forbidden for any other cases
+        return GameCell.HighlightType.FORBIDDEN;
+    }
+
     public void dispose() {
-        for(int i = 0; i < fieldHeight * fieldWidth; i++) {
+        for(int i = 0; i < fieldSide * fieldSide; i++) {
             if(field[i] != null)
                 field[i].dispose();
         }
@@ -216,20 +253,20 @@ public class GameField extends Widget {
     private GameCell getCellUnderCursor(float stageX, float stageY){
         int cellSize = getCellSize();
 
-        float selPosX = stageX - (getWidth() - cellSize * platesCount) / 2f;
-        float selPosY = stageY - (getHeight() - cellSize * platesCount) / 2f;
+        float selPosX = stageX - (getWidth() - cellSize * getFieldSide()) / 2f;
+        float selPosY = stageY - (getHeight() - cellSize * getFieldSide()) / 2f;
 
         if(
             selPosX < 0 || selPosY < 0 ||
-            selPosY >= platesCount * cellSize ||
-            selPosX >= platesCount * cellSize
+            selPosY >= getFieldSide() * cellSize ||
+            selPosX >= getFieldSide() * cellSize
         )
             return null;
 
         int cellX = (int)selPosX / cellSize;
         int cellY = (int)selPosY / cellSize;
 
-        return this.field[cellX * platesCount + cellY];
+        return this.field[cellX * getFieldSide() + cellY];
     }
 
     /* Input event listeners */
@@ -277,35 +314,32 @@ public class GameField extends Widget {
         selected.getVisualDragging().status = false;
         if(underCursor == null) return;
 
-        if(selected == underCursor) {
-            selected = null;
-            underCursor = null;
-            return;
-        }
+        this.doMove();
 
-        if(
+        this.underCursor = null;
+        this.selected = null;
+    }
+
+    private void doMove() {
+        if (selected == underCursor)
+            return;
+
+        if (
             selected.getType() == GameCell.CellType.PLATE &&
             selected.getType() == underCursor.getType() &&
             selected.getPower() != underCursor.getPower()
-        ) {
-            selected = null;
-            underCursor = null;
-            return;
-        }
+        ) return;
 
-        if(
+        if (
             underCursor.getType() == GameCell.CellType.BOMB &&
             selected.getPower() < underCursor.getPower()
-        ) {
-            selected = null;
-            underCursor = null;
-            return;
-        }
+        ) return;
 
-        int selectedX = selected.getPos() / platesCount;
-        int selectedY = selected.getPos() % platesCount;
-        int underCursorX = underCursor.getPos() / platesCount;
-        int underCursorY = underCursor.getPos() % platesCount;
+        final int fieldSide = getFieldSide();
+        int selectedX = selected.getPos() / fieldSide;
+        int selectedY = selected.getPos() % fieldSide;
+        int underCursorX = underCursor.getPos() / fieldSide;
+        int underCursorY = underCursor.getPos() % fieldSide;
 
         int underCursorPos = underCursor.getPos();
 
@@ -315,29 +349,56 @@ public class GameField extends Widget {
         if (selectedX != underCursorX && selectedY == underCursorY) {
             int from = Math.min(selectedX, underCursorX);
             int to = Math.max(selectedX, underCursorX);
+
+            // pre check
             for(int check = from; check <= to; check++){
-                int pos = check * platesCount + selectedY;
+                int pos = check * fieldSide + selectedY;
+                if(pos == selectedPos) continue;
+
+                GameCell.CellType type = this.field[pos].getType();
+                int power = this.field[pos].getPower();
+                if(
+                    (type == GameCell.CellType.PLATE && pos != underCursorPos) ||
+                    (type == GameCell.CellType.BOMB && power >= selectedPower)
+                ) return;
+            }
+
+            // post check
+            for(int check = from; check <= to; check++){
+                int pos = check * fieldSide + selectedY;
                 this.field[pos] = new GameCell(GameCell.CellType.BOMB, selectedPower, pos, cellFont);
             }
         } else if (selectedY != underCursorY && selectedX == underCursorX) {
             int from = Math.min(selectedY, underCursorY);
             int to = Math.max(selectedY, underCursorY);
+
+            // pre check
             for(int check = from; check <= to; check++){
-                int pos = selectedX * platesCount + check;
+                int pos = selectedX * fieldSide + check;
+                if(pos == selectedPos) continue;
+
+                GameCell.CellType type = this.field[pos].getType();
+                int power = this.field[pos].getPower();
+                if(
+                    (type == GameCell.CellType.PLATE && pos != underCursorPos) ||
+                    (type == GameCell.CellType.BOMB && power >= selectedPower)
+                ) return;
+            }
+
+            // post check
+            for(int check = from; check <= to; check++){
+                int pos = selectedX * fieldSide + check;
                 this.field[pos] = new GameCell(GameCell.CellType.BOMB, selectedPower, pos, cellFont);
             }
+        } else return;
+
+        if (this.underCursor.getType() == GameCell.CellType.PLATE){
+            this.field[underCursorPos] =
+                new GameCell(GameCell.CellType.PLATE, selectedPower + 1, underCursorPos, cellFont);
+        } else {
+            this.field[underCursorPos] =
+                new GameCell(GameCell.CellType.PLATE, selectedPower, underCursorPos, cellFont);
         }
-
-        if(this.underCursor.getType() == GameCell.CellType.EMPTY){
-            this.field[underCursorPos] = new GameCell(GameCell.CellType.PLATE, selectedPower, underCursorPos, cellFont);
-        } else if (this.underCursor.getType() == GameCell.CellType.PLATE){
-            this.field[underCursorPos] = new GameCell(GameCell.CellType.PLATE, selectedPower + 1, underCursorPos, cellFont);
-        }
-
-        this.underCursor = null;
-        this.selected = null;
-
-//        selected = null;
     }
 
 }
