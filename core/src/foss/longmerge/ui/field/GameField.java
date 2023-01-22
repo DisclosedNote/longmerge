@@ -1,5 +1,6 @@
 package foss.longmerge.ui.field;
 
+import com.badlogic.gdx.Game;
 import com.badlogic.gdx.graphics.Color;
 import com.badlogic.gdx.graphics.g2d.Batch;
 import com.badlogic.gdx.graphics.g2d.BitmapFont;
@@ -8,6 +9,7 @@ import com.badlogic.gdx.scenes.scene2d.InputEvent;
 import com.badlogic.gdx.scenes.scene2d.ui.Widget;
 import com.badlogic.gdx.scenes.scene2d.utils.ClickListener;
 
+import java.util.ArrayList;
 import java.util.Random;
 import java.util.concurrent.ThreadLocalRandom;
 
@@ -20,6 +22,7 @@ public class GameField extends Widget {
 
     public GameCell selected = null;
     public GameCell underCursor = null;
+    public int maxPower = 0;
 
     public int getFieldSide() {
         return fieldSide;
@@ -28,6 +31,7 @@ public class GameField extends Widget {
     public void regenerateField(){
         selected = null;
         underCursor = null;
+        maxPower = 0;
 
         field = new GameCell[fieldSide * fieldSide];
 
@@ -38,7 +42,8 @@ public class GameField extends Widget {
 
         // Generate empty
         for(int i = platesCount; i < fieldSide * fieldSide; i++) {
-            field[i] = new GameCell(i, cellFont);
+//            field[i] = new GameCell(i, cellFont);
+            field[i] = new GameCell(GameCell.CellType.BOMB, 0, i, cellFont);
         }
 
         // Random shuffle
@@ -395,10 +400,44 @@ public class GameField extends Widget {
         if (this.underCursor.getType() == GameCell.CellType.PLATE){
             this.field[underCursorPos] =
                 new GameCell(GameCell.CellType.PLATE, selectedPower + 1, underCursorPos, cellFont);
+
+            maxPower = Math.max(maxPower, selectedPower + 1);
+
+            this.createMinimumPlate();
         } else {
             this.field[underCursorPos] =
                 new GameCell(GameCell.CellType.PLATE, selectedPower, underCursorPos, cellFont);
         }
+    }
+
+    private void createMinimumPlate(){
+        // TODO: optimization
+
+        ArrayList<GameCell>[] gameCellsByPower = new ArrayList[maxPower+1];
+        for(int i = 0; i < maxPower+1; i++){
+            gameCellsByPower[i] = new ArrayList<>();
+        }
+
+        // Get the min bomb power
+        // and group bomb cells by power
+        int minPower = Integer.MAX_VALUE;
+        for (GameCell c : this.field) {
+            if (c.getType() == GameCell.CellType.BOMB) {
+                int power = c.getPower();
+                gameCellsByPower[power].add(c);
+                minPower = Math.min(power, minPower);
+            }
+        }
+
+        // If something awkward occurred
+        if(minPower == Integer.MAX_VALUE) return;
+
+        GameCell randomCell = gameCellsByPower[minPower].get(new Random().nextInt(gameCellsByPower[minPower].size()));
+        int randomCellPosition = randomCell.getPos();
+
+        this.field[randomCellPosition] =
+                new GameCell(GameCell.CellType.PLATE, minPower + 1, randomCellPosition, cellFont);
+
     }
 
 }

@@ -7,6 +7,7 @@ import com.badlogic.gdx.graphics.g2d.BitmapFont;
 import com.badlogic.gdx.graphics.g2d.GlyphLayout;
 import com.badlogic.gdx.graphics.glutils.ShapeRenderer;
 import com.badlogic.gdx.math.Vector2;
+import com.badlogic.gdx.scenes.scene2d.ui.Cell;
 import foss.longmerge.LongMergeGame;
 import org.w3c.dom.Text;
 
@@ -109,15 +110,10 @@ public class GameCell {
         this.power = power;
 
         // Generate color
-        switch(type){
-            case PLATE:
-            case BOMB:
-                color = hashColor(5,9,13);
-                break;
-
-            case EMPTY:
-                color = new Color(194 / 255f, 154 / 255f, 36 / 255f, 1); // #c29a24
-                break;
+        if((this.type == CellType.BOMB && this.power == 0) || this.type == CellType.EMPTY){
+            color = new Color(194 / 255f, 154 / 255f, 36 / 255f, 1); // #c29a24
+        } else {
+            color = hashColor(5,9,13);
         }
 
         // Measure text to draw
@@ -179,6 +175,8 @@ public class GameCell {
         shapeRenderer.setColor(Color.BLACK);
         shapeRenderer.rect(renderX, renderY, cellSize, cellSize);
         shapeRenderer.end();
+
+        if(this.type == CellType.BOMB && this.power == 0) return;
 
         if(this.type == CellType.PLATE){
             batch.begin();
