@@ -5,8 +5,6 @@ import com.badlogic.gdx.assets.AssetManager;
 import com.badlogic.gdx.graphics.OrthographicCamera;
 import com.badlogic.gdx.graphics.Texture;
 import com.badlogic.gdx.graphics.g2d.BitmapFont;
-import com.badlogic.gdx.scenes.scene2d.Event;
-import com.badlogic.gdx.scenes.scene2d.EventListener;
 import com.badlogic.gdx.scenes.scene2d.InputEvent;
 import com.badlogic.gdx.scenes.scene2d.Stage;
 import com.badlogic.gdx.scenes.scene2d.ui.*;
@@ -15,13 +13,9 @@ import com.badlogic.gdx.utils.Align;
 import com.badlogic.gdx.utils.ScreenUtils;
 import com.badlogic.gdx.utils.viewport.ScreenViewport;
 import foss.longmerge.ui.field.GameField;
-
-import java.util.HashMap;
+import foss.longmerge.ui.field.GameSolver;
 
 public class LongMergeGame extends Game {
-//	SpriteBatch batch;
-//	Texture img;
-
 	public static AssetManager assetManager;
 
 	public InputMultiplexer multiplexer;
@@ -33,16 +27,16 @@ public class LongMergeGame extends Game {
 
 	/* Assets */
 	public static BitmapFont cellFont;
-	public static String TEXTURE_BOMB 		= "textures/bomb.png";
-	public static String TEXTURE_CELL 		= "textures/cell.png";
+	public static String TEXTURE_TRAIL = "textures/trail.png";
+	public static String TEXTURE_CELL  = "textures/cell.png";
 
 	/* UI */
 	public boolean triggeredToBuildUI = false;
 	public GameField gameField;
 	public Table uiTable;
 	public Table topPanelTable;
-	public Label score;
-	public Label title;
+	public Label statusLabel;
+	public Label titleLabel;
 
 	@Override
 	public void create () {
@@ -60,14 +54,11 @@ public class LongMergeGame extends Game {
 
 		this.loadTextures();
 
-//		batch = new SpriteBatch();
-//		img = new Texture("badlogic.jpg");
-
 		this.resize(Gdx.graphics.getWidth(), Gdx.graphics.getHeight());
 	}
 
 	private void loadTextures(){
-		assetManager.load(TEXTURE_BOMB, Texture.class);
+		assetManager.load(TEXTURE_TRAIL, Texture.class);
 		assetManager.load(TEXTURE_CELL, Texture.class);
 	}
 
@@ -80,13 +71,22 @@ public class LongMergeGame extends Game {
 		topPanelTable = new Table(skin);
 		topPanelTable.align(Align.left);
 //		topPanelTable.setDebug(true);
-		topPanelTable.setHeight(32);
+		topPanelTable.setHeight(64);
+
+		titleLabel = new Label("", skin, "title");
+		titleLabel.setAlignment(Align.left);
+		statusLabel = new Label("", skin);
+		statusLabel.setAlignment(Align.right);
+//		updateStatusLabel(GameSolver.Result.SOLVABLE, 0);
 
 		gameField = new GameField(cellFont);
-		title = new Label("Longmerge", skin, "title");
-		title.setAlignment(Align.left);
-		score = new Label("Score: 0", skin);
-		score.setAlignment(Align.right);
+		gameField.getGameSolver().setListener(new GameSolver.GameSolverListener(){
+			@Override
+			public void solved(GameSolver.Result status){
+				LongMergeGame.this.updateStatusLabel(status, gameField.getScore());
+			}
+		});
+		gameField.regenerateField();
 
 		ImageButton newGameButton = new ImageButton(skin, "new-game-button");
 		ImageButton undoButton = new ImageButton(skin, "undo-button");
@@ -108,19 +108,45 @@ public class LongMergeGame extends Game {
 
 
 		for(ImageButton el : els)
-			topPanelTable.add(el).width(32).height(32);
+			topPanelTable.add(el).width(64).height(64);
 
 		uiTable.add(topPanelTable).colspan(2).fillX();
 		uiTable.row();
 		uiTable.add(gameField).colspan(2).expand().fill();
 		uiTable.row();
-		uiTable.add(title).fill().expandX();
-		uiTable.add(score).fill().expandX();
+		uiTable.add(titleLabel).fill().expandX();
+		uiTable.add(statusLabel).fill().expandX();
 
 		// Add to scene
 		stage.addActor(uiTable);
 	}
 
+	public void updateStatusLabel(GameSolver.Result status, int score){
+
+		String solverText;
+
+		switch(status){
+			default:
+			case UNKNOWN:
+				solverText = "Computing...";
+				break;
+
+			case GAME_OVER:
+				solverText = "Game over :(";
+				break;
+
+			case PARTLY_SOLVABLE:
+				solverText = "Partly solvable";
+				break;
+
+			case SOLVABLE:
+				solverText = "Solvable";
+				break;
+		}
+
+		statusLabel.setText("Score: " + score + "\nSolver: " + solverText);
+		titleLabel.setText("\nLongMerge");
+	}
 
 	@Override
 	public void render () {
@@ -201,6 +227,7 @@ public class LongMergeGame extends Game {
 		gameField.dispose();
 		stage.dispose();
 		skin.dispose();
+		cellFont.dispose();
 		assetManager.dispose();
 	}
 

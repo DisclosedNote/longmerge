@@ -1,6 +1,5 @@
 package foss.longmerge.ui.field;
 
-import com.badlogic.gdx.Game;
 import com.badlogic.gdx.graphics.Color;
 import com.badlogic.gdx.graphics.g2d.Batch;
 import com.badlogic.gdx.graphics.g2d.BitmapFont;
@@ -14,15 +13,34 @@ import java.util.Random;
 import java.util.concurrent.ThreadLocalRandom;
 
 public class GameField extends Widget {
+    // Score constants
+    static final int SCORE_TRAIL = 5;
+    static final int SCORE_MERGED = 10;
+
     private final int fieldSide;
     private final int platesCount = 8;
     private final BitmapFont cellFont;
+    private final GameSolver gameSolver = new GameSolver();
     private GameCell[] field;
     public ShapeRenderer shapeRenderer = new ShapeRenderer();
 
     public GameCell selected = null;
     public GameCell underCursor = null;
-    public int maxPower = 0;
+    private int maxPower = 0;
+
+    private int score = 0;
+
+    public int getMaxPower() {
+        return maxPower;
+    }
+
+    public int getScore() {
+        return score;
+    }
+
+    public GameSolver getGameSolver() {
+        return gameSolver;
+    }
 
     public int getFieldSide() {
         return fieldSide;
@@ -32,6 +50,8 @@ public class GameField extends Widget {
         selected = null;
         underCursor = null;
         maxPower = 0;
+        score = 0;
+        gameSolver.reset();
 
         field = new GameCell[fieldSide * fieldSide];
 
@@ -43,7 +63,7 @@ public class GameField extends Widget {
         // Generate empty
         for(int i = platesCount; i < fieldSide * fieldSide; i++) {
 //            field[i] = new GameCell(i, cellFont);
-            field[i] = new GameCell(GameCell.CellType.BOMB, 0, i, cellFont);
+            field[i] = new GameCell(GameCell.CellType.TRAIL, 0, i, cellFont);
         }
 
         // Random shuffle
@@ -93,8 +113,6 @@ public class GameField extends Widget {
                 GameField.this.touchUp(event,x,y,pointer,button);
             }
         });
-
-        this.regenerateField();
     }
 
     public int getCellSize(){
@@ -228,8 +246,8 @@ public class GameField extends Widget {
             cellType == GameCell.CellType.PLATE &&
             cellPower == selectedPower
         );
-        final boolean checkBombs = (
-            cellType == GameCell.CellType.BOMB &&
+        final boolean checkTrails = (
+            cellType == GameCell.CellType.TRAIL &&
             cellPower < selectedPower
         );
         final boolean checkEmpty = (
@@ -237,7 +255,7 @@ public class GameField extends Widget {
         );
 
         // Available if movable
-        if(checkPlates || checkBombs || checkEmpty)
+        if(checkPlates || checkTrails || checkEmpty)
             return GameCell.HighlightType.AVAILABLE;
 
         // Forbidden for any other cases
@@ -329,6 +347,8 @@ public class GameField extends Widget {
         if (selected == underCursor)
             return;
 
+        // TODO: reduce code duplicate, merge with GameSolver code validation
+
         if (
             selected.getType() == GameCell.CellType.PLATE &&
             selected.getType() == underCursor.getType() &&
@@ -336,7 +356,7 @@ public class GameField extends Widget {
         ) return;
 
         if (
-            underCursor.getType() == GameCell.CellType.BOMB &&
+            underCursor.getType() == GameCell.CellType.TRAIL &&
             selected.getPower() < underCursor.getPower()
         ) return;
 
@@ -351,6 +371,8 @@ public class GameField extends Widget {
         int selectedPos = selected.getPos();
         int selectedPower = selected.getPower();
 
+
+        // TODO: reduce code duplicate
         if (selectedX != underCursorX && selectedY == underCursorY) {
             int from = Math.min(selectedX, underCursorX);
             int to = Math.max(selectedX, underCursorX);
@@ -364,14 +386,16 @@ public class GameField extends Widget {
                 int power = this.field[pos].getPower();
                 if(
                     (type == GameCell.CellType.PLATE && pos != underCursorPos) ||
-                    (type == GameCell.CellType.BOMB && power >= selectedPower)
+                    (type == GameCell.CellType.TRAIL && power >= selectedPower)
                 ) return;
             }
 
             // post check
             for(int check = from; check <= to; check++){
                 int pos = check * fieldSide + selectedY;
-                this.field[pos] = new GameCell(GameCell.CellType.BOMB, selectedPower, pos, cellFont);
+                if(pos == underCursorPos) continue;
+                this.field[pos] = new GameCell(GameCell.CellType.TRAIL, selectedPower, pos, cellFont);
+                score += SCORE_TRAIL;
             }
         } else if (selectedY != underCursorY && selectedX == underCursorX) {
             int from = Math.min(selectedY, underCursorY);
@@ -386,14 +410,16 @@ public class GameField extends Widget {
                 int power = this.field[pos].getPower();
                 if(
                     (type == GameCell.CellType.PLATE && pos != underCursorPos) ||
-                    (type == GameCell.CellType.BOMB && power >= selectedPower)
+                    (type == GameCell.CellType.TRAIL && power >= selectedPower)
                 ) return;
             }
 
             // post check
             for(int check = from; check <= to; check++){
                 int pos = selectedX * fieldSide + check;
-                this.field[pos] = new GameCell(GameCell.CellType.BOMB, selectedPower, pos, cellFont);
+                if(pos == underCursorPos) continue;
+                this.field[pos] = new GameCell(GameCell.CellType.TRAIL, selectedPower, pos, cellFont);
+                score += SCORE_TRAIL;
             }
         } else return;
 
@@ -403,11 +429,17 @@ public class GameField extends Widget {
 
             maxPower = Math.max(maxPower, selectedPower + 1);
 
+            score += SCORE_MERGED;
+
             this.createMinimumPlate();
         } else {
             this.field[underCursorPos] =
                 new GameCell(GameCell.CellType.PLATE, selectedPower, underCursorPos, cellFont);
         }
+
+        // Compute if the game is solvable
+        // TODO: solve async
+        this.gameSolver.solve(field, fieldSide);
     }
 
     private void createMinimumPlate(){
@@ -418,11 +450,11 @@ public class GameField extends Widget {
             gameCellsByPower[i] = new ArrayList<>();
         }
 
-        // Get the min bomb power
-        // and group bomb cells by power
+        // Get the min trails power
+        // and group trail cells by power
         int minPower = Integer.MAX_VALUE;
         for (GameCell c : this.field) {
-            if (c.getType() == GameCell.CellType.BOMB) {
+            if (c.getType() == GameCell.CellType.TRAIL) {
                 int power = c.getPower();
                 gameCellsByPower[power].add(c);
                 minPower = Math.min(power, minPower);

@@ -7,11 +7,8 @@ import com.badlogic.gdx.graphics.g2d.BitmapFont;
 import com.badlogic.gdx.graphics.g2d.GlyphLayout;
 import com.badlogic.gdx.graphics.glutils.ShapeRenderer;
 import com.badlogic.gdx.math.Vector2;
-import com.badlogic.gdx.scenes.scene2d.ui.Cell;
 import foss.longmerge.LongMergeGame;
-import org.w3c.dom.Text;
 
-import java.io.UnsupportedEncodingException;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
@@ -25,7 +22,7 @@ public class GameCell {
 
     enum CellType {
         EMPTY,
-        BOMB,
+        TRAIL,
         PLATE
     }
 
@@ -46,14 +43,14 @@ public class GameCell {
     private boolean highlighted = false;
     private final VisualDragging visualDragging = new VisualDragging();
     private final BitmapFont cellFont;
-    private final Texture bombTexture;
+    private final Texture trailTexture;
     private final Texture cellTexture;
     private final GlyphLayout cellTextLayout = new GlyphLayout();
     public GameCell(CellType type, int power, int pos, BitmapFont cellFont) {
         this.type = type;
         this.pos = pos;
         this.cellFont = cellFont;
-        bombTexture = LongMergeGame.assetManager.get(LongMergeGame.TEXTURE_BOMB);
+        trailTexture = LongMergeGame.assetManager.get(LongMergeGame.TEXTURE_TRAIL);
         cellTexture = LongMergeGame.assetManager.get(LongMergeGame.TEXTURE_CELL);
         this.setPower(power);
     }
@@ -110,7 +107,7 @@ public class GameCell {
         this.power = power;
 
         // Generate color
-        if((this.type == CellType.BOMB && this.power == 0) || this.type == CellType.EMPTY){
+        if((this.type == CellType.TRAIL && this.power == 0) || this.type == CellType.EMPTY){
             color = new Color(194 / 255f, 154 / 255f, 36 / 255f, 1); // #c29a24
         } else {
             color = hashColor(5,9,13);
@@ -176,7 +173,7 @@ public class GameCell {
         shapeRenderer.rect(renderX, renderY, cellSize, cellSize);
         shapeRenderer.end();
 
-        if(this.type == CellType.BOMB && this.power == 0) return;
+        if(this.type == CellType.TRAIL && this.power == 0) return;
 
         if(this.type == CellType.PLATE){
             batch.begin();
@@ -184,7 +181,7 @@ public class GameCell {
             batch.end();
         }
 
-        if(this.type == CellType.BOMB || this.type == CellType.PLATE) {
+        if(this.type == CellType.TRAIL || this.type == CellType.PLATE) {
             batch.begin();
 
             float textPosX = renderX + cellSize / 2f - cellTextLayout.width / 2;
