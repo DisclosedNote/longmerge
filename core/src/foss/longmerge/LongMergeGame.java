@@ -89,14 +89,14 @@ public class LongMergeGame extends Game {
 		gameField.regenerateField();
 
 		ImageButton newGameButton = new ImageButton(skin, "new-game-button");
-		ImageButton undoButton = new ImageButton(skin, "undo-button");
-		ImageButton redoButton = new ImageButton(skin, "redo-button");
+//		ImageButton undoButton = new ImageButton(skin, "undo-button");
+//		ImageButton redoButton = new ImageButton(skin, "redo-button");
 
 		ImageButton[] els = new ImageButton[]
 		{
 			newGameButton,
-			undoButton,
-			redoButton
+//			undoButton,
+//			redoButton
 		};
 
 		newGameButton.addListener(new ClickListener() {
