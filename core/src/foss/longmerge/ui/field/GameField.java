@@ -9,10 +9,26 @@ import com.badlogic.gdx.scenes.scene2d.ui.Widget;
 import com.badlogic.gdx.scenes.scene2d.utils.ClickListener;
 
 import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.LinkedList;
 import java.util.Random;
 import java.util.concurrent.ThreadLocalRandom;
 
 public class GameField extends Widget {
+
+    static class HistoryData {
+        public int score;
+        public int maxPower;
+        public GameCell[] field;
+
+        public HistoryData(int score, int maxPower, GameCell[] field) {
+            this.score = score;
+            this.maxPower = maxPower;
+            this.field = field;
+        }
+    }
+
+
     // Score constants
     static final int SCORE_TRAIL = 5;
     static final int SCORE_MERGED = 10;
@@ -27,8 +43,9 @@ public class GameField extends Widget {
     public GameCell selected = null;
     public GameCell underCursor = null;
     private int maxPower = 0;
-
     private int score = 0;
+    private LinkedList<HistoryData> history;
+    private int maxHistoryData = 10;
 
     public int getMaxPower() {
         return maxPower;
@@ -46,14 +63,22 @@ public class GameField extends Widget {
         return fieldSide;
     }
 
+    public LinkedList<HistoryData> getHistory() {
+        return history;
+    }
+
     public void regenerateField(){
+        field = new GameCell[fieldSide * fieldSide];
+        history = new LinkedList<>();
+
         selected = null;
         underCursor = null;
         maxPower = 0;
         score = 0;
         gameSolver.reset();
 
-        field = new GameCell[fieldSide * fieldSide];
+
+
 
         // Generate plates
         for(int i = 0; i < platesCount; i++) {
@@ -390,6 +415,8 @@ public class GameField extends Widget {
                 ) return;
             }
 
+            this.pushToHistory();
+
             // post check
             for(int check = from; check <= to; check++){
                 int pos = check * fieldSide + selectedY;
@@ -413,6 +440,8 @@ public class GameField extends Widget {
                     (type == GameCell.CellType.TRAIL && power >= selectedPower)
                 ) return;
             }
+
+            this.pushToHistory();
 
             // post check
             for(int check = from; check <= to; check++){
@@ -470,6 +499,27 @@ public class GameField extends Widget {
         this.field[randomCellPosition] =
                 new GameCell(GameCell.CellType.PLATE, minPower + 1, randomCellPosition, cellFont);
 
+    }
+
+    public void pushToHistory(){
+        history.push(new HistoryData(this.score, this.maxPower, Arrays.copyOf(this.field, this.field.length)));
+        if(history.size() > maxHistoryData){
+            history.removeLast();
+        }
+    }
+
+    public void revertFromHistory(){
+        if(history.size() == 0) return;
+        HistoryData d = history.getFirst();
+
+        this.field = Arrays.copyOf(d.field, d.field.length);
+        this.maxPower = d.maxPower;
+        this.score = d.score;
+
+        history.removeFirst();
+
+
+        gameSolver.solve(this.field, this.fieldSide);
     }
 
 }

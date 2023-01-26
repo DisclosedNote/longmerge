@@ -37,6 +37,8 @@ public class LongMergeGame extends Game {
 	public Table topPanelTable;
 	public Label statusLabel;
 	public Label titleLabel;
+	public ImageButton undoButton;
+	public ImageButton newGameButton;
 
 	@Override
 	public void create () {
@@ -79,23 +81,16 @@ public class LongMergeGame extends Game {
 		statusLabel.setAlignment(Align.right);
 //		updateStatusLabel(GameSolver.Result.SOLVABLE, 0);
 
-		gameField = new GameField(cellFont);
-		gameField.getGameSolver().setListener(new GameSolver.GameSolverListener(){
-			@Override
-			public void solved(GameSolver.Result status){
-				LongMergeGame.this.updateStatusLabel(status, gameField.getScore());
-			}
-		});
-		gameField.regenerateField();
 
-		ImageButton newGameButton = new ImageButton(skin, "new-game-button");
-//		ImageButton undoButton = new ImageButton(skin, "undo-button");
+
+		newGameButton = new ImageButton(skin, "new-game-button");
+		undoButton = new ImageButton(skin, "undo-button");
 //		ImageButton redoButton = new ImageButton(skin, "redo-button");
 
 		ImageButton[] els = new ImageButton[]
 		{
 			newGameButton,
-//			undoButton,
+			undoButton,
 //			redoButton
 		};
 
@@ -105,10 +100,24 @@ public class LongMergeGame extends Game {
 				LongMergeGame.this.gameField.regenerateField();
 			}
 		});
-
+		undoButton.addListener(new ClickListener() {
+			@Override
+			public void clicked(InputEvent event, float x, float y) {
+				LongMergeGame.this.gameField.revertFromHistory();
+			}
+		});
 
 		for(ImageButton el : els)
 			topPanelTable.add(el).width(64).height(64);
+
+		gameField = new GameField(cellFont);
+		gameField.getGameSolver().setListener(new GameSolver.GameSolverListener(){
+			@Override
+			public void solved(GameSolver.Result status){
+				LongMergeGame.this.updateUI(status, gameField.getScore());
+			}
+		});
+		gameField.regenerateField();
 
 		uiTable.add(topPanelTable).colspan(2).fillX();
 		uiTable.row();
@@ -121,7 +130,7 @@ public class LongMergeGame extends Game {
 		stage.addActor(uiTable);
 	}
 
-	public void updateStatusLabel(GameSolver.Result status, int score){
+	public void updateUI(GameSolver.Result status, int score){
 
 		String solverText;
 
@@ -146,6 +155,8 @@ public class LongMergeGame extends Game {
 
 		statusLabel.setText("Score: " + score + "\nSolver: " + solverText);
 		titleLabel.setText("\nLongMerge");
+
+		undoButton.setDisabled(this.gameField.getHistory().size() == 0);
 	}
 
 	@Override
